@@ -1,0 +1,20 @@
+# Compiled plugin binary
+packer-plugin-cloud-hypervisor
+packer-plugin-cloud-hypervisor.exe
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Packer cache
+.packer/
+crash.log
+examples/assets/
+examples/firmware-boot/output-firmware-boot/
+examples/kernel-boot/output-kernel-boot/
