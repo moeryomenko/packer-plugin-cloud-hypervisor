@@ -149,6 +149,16 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, error) {
 	c.Serial = defaultSerialMode
 	c.Console = defaultSerialMode
 
+	// Initialize communicator defaults (SSHPort=22, etc.).
+	// This also validates SSH key file existence, host key settings, etc.
+	if errs := c.CommConfig.Prepare(&interpolate.Context{}); len(errs) > 0 {
+		var msgs []string
+		for _, e := range errs {
+			msgs = append(msgs, e.Error())
+		}
+		return nil, fmt.Errorf("communicator config: %s", strings.Join(msgs, "; "))
+	}
+
 	err := config.Decode(c, &config.DecodeOpts{
 		PluginType:        BuilderID,
 		Interpolate:       true,
