@@ -149,16 +149,6 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, error) {
 	c.Serial = defaultSerialMode
 	c.Console = defaultSerialMode
 
-	// Initialize communicator defaults (SSHPort=22, etc.).
-	// This also validates SSH key file existence, host key settings, etc.
-	if errs := c.CommConfig.Prepare(&interpolate.Context{}); len(errs) > 0 {
-		var msgs []string
-		for _, e := range errs {
-			msgs = append(msgs, e.Error())
-		}
-		return nil, fmt.Errorf("communicator config: %s", strings.Join(msgs, "; "))
-	}
-
 	err := config.Decode(c, &config.DecodeOpts{
 		PluginType:        BuilderID,
 		Interpolate:       true,
@@ -166,6 +156,19 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, error) {
 	}, raws...)
 	if err != nil {
 		return nil, fmt.Errorf("config decode: %w", err)
+	}
+
+	// Initialize communicator defaults (SSHPort=22, etc.) and validate the
+	// communicator config. This MUST run after config.Decode so the
+	// user-supplied values (ssh_username, ssh_private_key_file, ...) are
+	// populated first; validating the zero-value config before decode made
+	// every build fail with "An ssh_username must be specified".
+	if errs := c.CommConfig.Prepare(&interpolate.Context{}); len(errs) > 0 {
+		var msgs []string
+		for _, e := range errs {
+			msgs = append(msgs, e.Error())
+		}
+		return nil, fmt.Errorf("communicator config: %s", strings.Join(msgs, "; "))
 	}
 
 	var warnings []string

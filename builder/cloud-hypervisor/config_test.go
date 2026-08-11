@@ -10,11 +10,14 @@ import (
 
 // testConfig returns a minimal valid config map. Individual tests add fields
 // to trigger specific validation paths. Note: this config is NOT valid on its
-// own — it needs a kernel or firmware payload to pass Prepare().
+// own — it needs a kernel or firmware payload to pass Prepare(). ssh_username
+// is supplied because the communicator Prepare (post-decode) requires it for
+// the default ssh communicator.
 func testConfig() map[string]any {
 	return map[string]any{
-		"vcpus":  2,
-		"memory": 512,
+		"vcpus":        2,
+		"memory":       512,
+		"ssh_username": "packer",
 	}
 }
 
@@ -221,6 +224,7 @@ func TestConfigPrepare_sshNoNetwork(t *testing.T) {
 	raw := testConfig()
 	raw["kernel"] = writeTempFile(t, "kernel-*")
 	raw["communicator"] = "ssh"
+	raw["ssh_username"] = "root"
 	// No network_interfaces set; SSH requires at least one network interface
 	var c cloudhypervisor.Config
 	warns, errs := c.Prepare(raw)
@@ -414,7 +418,59 @@ func TestConfigPrepare_winrmNoNetwork(t *testing.T) {
 	raw := testConfig()
 	raw["kernel"] = writeTempFile(t, "kernel-*")
 	raw["communicator"] = "winrm"
+	raw["winrm_username"] = "Administrator"
 	// No network_interfaces set
+	var c cloudhypervisor.Config
+	warns, errs := c.Prepare(raw)
+	testConfigErr(t, warns, errs)
+}
+
+// ---------------------------------------------------------------------------
+// Regression: communicator validation must run AFTER config.Decode (bug
+// 979d702 validated the zero-value config before decode, failing every build
+// with "An ssh_username must be specified" even when the template supplies it).
+// ---------------------------------------------------------------------------
+
+func TestConfigPrepare_sshWithUsername(t *testing.T) {
+	t.Parallel()
+	raw := testConfig()
+	raw["kernel"] = writeTempFile(t, "kernel-*")
+	raw["communicator"] = "ssh"
+	raw["ssh_username"] = "root"
+	raw["network_interfaces"] = []map[string]any{
+		{"tap": "k8s-test", "mac": "de:ad:be:ef:00:01"},
+	}
+	var c cloudhypervisor.Config
+	warns, errs := c.Prepare(raw)
+	testConfigOk(t, warns, errs)
+}
+
+func TestConfigPrepare_sshMissingUsername(t *testing.T) {
+	t.Parallel()
+	raw := testConfig()
+	raw["kernel"] = writeTempFile(t, "kernel-*")
+	raw["communicator"] = "ssh"
+	raw["network_interfaces"] = []map[string]any{
+		{"tap": "k8s-test", "mac": "de:ad:be:ef:00:01"},
+	}
+	// Deliberately no ssh_username: the communicator Prepare (post-decode)
+	// must report the missing username.
+	delete(raw, "ssh_username")
+	var c cloudhypervisor.Config
+	warns, errs := c.Prepare(raw)
+	testConfigErr(t, warns, errs)
+}
+
+func TestConfigPrepare_sshPrivateKeyMissing(t *testing.T) {
+	t.Parallel()
+	raw := testConfig()
+	raw["kernel"] = writeTempFile(t, "kernel-*")
+	raw["communicator"] = "ssh"
+	raw["ssh_username"] = "root"
+	raw["ssh_private_key_file"] = filepath.Join(t.TempDir(), "does-not-exist")
+	raw["network_interfaces"] = []map[string]any{
+		{"tap": "k8s-test", "mac": "de:ad:be:ef:00:01"},
+	}
 	var c cloudhypervisor.Config
 	warns, errs := c.Prepare(raw)
 	testConfigErr(t, warns, errs)
