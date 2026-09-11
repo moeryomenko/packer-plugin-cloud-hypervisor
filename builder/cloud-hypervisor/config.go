@@ -72,19 +72,18 @@ type NetworkInterface struct {
 // packer-plugin-sdk's Decode function rejects unknown keys.
 func knownKeys() map[string]bool {
 	keys := map[string]bool{}
-	collectKeys(reflect.TypeOf(Config{}), keys)
+	collectKeys(reflect.TypeFor[Config](), keys)
 	return keys
 }
 
 func collectKeys(t reflect.Type, keys map[string]bool) {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
 		return
 	}
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
+	for f := range t.Fields() {
 		tag := f.Tag.Get("mapstructure")
 		if tag == "" || tag == "-" {
 			continue
@@ -111,15 +110,15 @@ func collectKeys(t reflect.Type, keys map[string]bool) {
 // Config struct. This prevents config.Decode from returning "unknown
 // configuration key" errors for fields like "some_unknown_field" that may
 // appear in test fixtures or template leftovers.
-func filterRaws(raws []interface{}, keys map[string]bool) []interface{} {
-	filtered := make([]interface{}, len(raws))
+func filterRaws(raws []any, keys map[string]bool) []any {
+	filtered := make([]any, len(raws))
 	for i, raw := range raws {
-		m, ok := raw.(map[string]interface{})
+		m, ok := raw.(map[string]any)
 		if !ok {
 			filtered[i] = raw
 			continue
 		}
-		nm := make(map[string]interface{}, len(m))
+		nm := make(map[string]any, len(m))
 		for k, v := range m {
 			// Always allow packer_* and type keys (they are handled by
 			// PackerCore or explicitly allowed by the SDK).
@@ -136,7 +135,7 @@ func filterRaws(raws []interface{}, keys map[string]bool) []interface{} {
 	return filtered
 }
 
-func (c *Config) Prepare(raws ...interface{}) ([]string, error) {
+func (c *Config) Prepare(raws ...any) ([]string, error) {
 	// Build known keys once and cache.
 	known := knownKeys()
 
@@ -299,7 +298,7 @@ func (c *Config) Prepare(raws ...interface{}) ([]string, error) {
 	// provisioning connectivity.
 	explicitComm := ""
 	for _, raw := range raws {
-		if m, ok := raw.(map[string]interface{}); ok {
+		if m, ok := raw.(map[string]any); ok {
 			if v, ok := m["communicator"]; ok {
 				if s, ok := v.(string); ok {
 					explicitComm = s

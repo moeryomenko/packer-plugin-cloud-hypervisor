@@ -68,7 +68,7 @@ func (s *StepLaunchCh) Run(ctx context.Context, state multistep.StateBag) multis
 	client := chclient.New(s.ChSocketPath)
 
 	var pingErr error
-	for i := 0; i < chPingRetries; i++ {
+	for range chPingRetries {
 		select {
 		case <-ctx.Done():
 			return multistep.ActionHalt

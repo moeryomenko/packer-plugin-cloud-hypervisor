@@ -30,7 +30,7 @@ func (b *Builder) ConfigSpec() hcldec.ObjectSpec {
 
 // Prepare validates the builder configuration and returns any warnings or
 // errors.
-func (b *Builder) Prepare(raws ...interface{}) (generatedVars, warnings []string, err error) { //nolint:nonamedreturns
+func (b *Builder) Prepare(raws ...any) (generatedVars, warnings []string, err error) { //nolint:nonamedreturns
 	w, e := b.config.Prepare(raws...)
 	if e != nil {
 		return nil, w, e
@@ -91,7 +91,7 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 	state.Put("hook", hook)
 	state.Put("ui", ui)
 	state.Put("config", &b.config)
-	state.Put("generated_data", make(map[string]interface{}))
+	state.Put("generated_data", make(map[string]any))
 
 	// Run!
 	b.runner = commonsteps.NewRunner(steps, b.config.PackerConfig, ui)

@@ -193,7 +193,7 @@ func TestConfigPrepare_allReadonlyWarning(t *testing.T) {
 
 	raw := testConfig()
 	raw["kernel"] = writeTempFile(t, "kernel-*")
-	raw["disk_images"] = []map[string]interface{}{
+	raw["disk_images"] = []map[string]any{
 		{"path": img1, "readonly": true},
 		{"path": img2, "readonly": true},
 	}
@@ -301,7 +301,7 @@ func TestConfigPrepare_emptyDisks(t *testing.T) {
 	t.Parallel()
 	raw := testConfig()
 	raw["kernel"] = writeTempFile(t, "kernel-*")
-	raw["disk_images"] = []map[string]interface{}{}
+	raw["disk_images"] = []map[string]any{}
 	var c cloudhypervisor.Config
 	warns, errs := c.Prepare(raw)
 	testConfigOk(t, warns, errs)
@@ -323,7 +323,7 @@ func TestConfigPrepare_mixedDisks(t *testing.T) {
 
 	raw := testConfig()
 	raw["kernel"] = writeTempFile(t, "kernel-*")
-	raw["disk_images"] = []map[string]interface{}{
+	raw["disk_images"] = []map[string]any{
 		{"path": ro, "readonly": true},
 		{"path": rw, "readonly": false},
 	}
@@ -403,7 +403,7 @@ func TestConfigPrepare_diskPathIsDirectory(t *testing.T) {
 
 	raw := testConfig()
 	raw["kernel"] = writeTempFile(t, "kernel-*")
-	raw["disk_images"] = []map[string]interface{}{
+	raw["disk_images"] = []map[string]any{
 		{"path": diskDir, "readonly": false},
 	}
 	var c cloudhypervisor.Config

@@ -37,10 +37,10 @@ func (a *Artifact) String() string {
 
 // State returns additional artifact metadata. It supports the "generated_data"
 // key and the registry image state URI.
-func (a *Artifact) State(name string) interface{} {
+func (a *Artifact) State(name string) any {
 	switch name {
 	case "generated_data":
-		return map[string]interface{}{
+		return map[string]any{
 			"artifact_id": a.Id(),
 		}
 	case registryimage.ArtifactStateURI:
@@ -60,6 +60,6 @@ func (a *Artifact) Destroy() error {
 
 // artifactState returns the registry image state for the artifact. For now
 // this returns nil (no registry image).
-func (a *Artifact) artifactState() interface{} {
+func (a *Artifact) artifactState() any {
 	return nil
 }

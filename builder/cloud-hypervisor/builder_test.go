@@ -25,15 +25,15 @@ import (
 // mockUI is a no-op implementation of packersdk.Ui for use in tests.
 type mockUI struct{}
 
-func (u *mockUI) Ask(_ string) (string, error)                    { return "", nil }
-func (u *mockUI) Say(_ string)                                    {}
-func (u *mockUI) Message(_ string)                                {}
-func (u *mockUI) Error(_ string)                                  {}
-func (u *mockUI) Machine(_ string, _ ...string)                   {}
-func (u *mockUI) Askf(_ string, _ ...interface{}) (string, error) { return "", nil }
-func (u *mockUI) Sayf(_ string, _ ...interface{})                 {}
-func (u *mockUI) Messagef(_ string, _ ...interface{})             {}
-func (u *mockUI) Errorf(_ string, _ ...interface{})               {}
+func (u *mockUI) Ask(_ string) (string, error)            { return "", nil }
+func (u *mockUI) Say(_ string)                            {}
+func (u *mockUI) Message(_ string)                        {}
+func (u *mockUI) Error(_ string)                          {}
+func (u *mockUI) Machine(_ string, _ ...string)           {}
+func (u *mockUI) Askf(_ string, _ ...any) (string, error) { return "", nil }
+func (u *mockUI) Sayf(_ string, _ ...any)                 {}
+func (u *mockUI) Messagef(_ string, _ ...any)             {}
+func (u *mockUI) Errorf(_ string, _ ...any)               {}
 func (u *mockUI) TrackProgress(_ string, _, _ int64, stream io.ReadCloser) io.ReadCloser {
 	return stream
 }
@@ -119,9 +119,9 @@ func TestStepCreateVM_Run(t *testing.T) {
 		Cpus:   chclient.CpusConfig{BootVcpus: 2, MaxVcpus: 4},
 		Memory: chclient.MemoryConfig{Size: 536870912},
 		Payload: &chclient.PayloadConfig{
-			Kernel:    strPtr("/vmlinux"),
-			Initramfs: strPtr("/initramfs"),
-			Cmdline:   strPtr("console=ttyS0"),
+			Kernel:    new("/vmlinux"),
+			Initramfs: new("/initramfs"),
+			Cmdline:   new("console=ttyS0"),
 		},
 		Disks: []chclient.DiskConfig{
 			{Path: "/disk0.img", Readonly: false, ImageType: "raw"},
@@ -577,7 +577,7 @@ func TestArtifact_State(t *testing.T) {
 
 	// "generated_data" must return a map with at least artifact_id
 	data := a.State("generated_data")
-	m, ok := data.(map[string]interface{})
+	m, ok := data.(map[string]any)
 	if !ok {
 		t.Fatalf("State('generated_data') returned %T, expected map[string]interface{}", data)
 	}
@@ -667,14 +667,4 @@ func TestCommHost_EmptyInterfaces(t *testing.T) {
 	if host != "" {
 		t.Errorf("CommHost = %q, want empty string", host)
 	}
-}
-
-// ---------------------------------------------------------------------------
-// strPtr is a helper that returns a pointer to the given string value.
-// Duplicated from chclient tests to avoid cross-package dependency on internal
-// helpers.
-// ---------------------------------------------------------------------------
-
-func strPtr(s string) *string {
-	return &s
 }

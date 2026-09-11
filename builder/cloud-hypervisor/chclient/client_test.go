@@ -64,17 +64,13 @@ func writeUnchecked(w http.ResponseWriter, data []byte) {
 	_, _ = w.Write(data) //nolint:errcheck
 }
 
-// strPtr is a helper that returns a pointer to the given string.
-func strPtr(s string) *string {
-	return &s
-}
-
 // ---------------------------------------------------------------------------
 // Happy-path tests — each API method returns the expected success code
 // ---------------------------------------------------------------------------
 
 func TestPing(t *testing.T) {
 	t.Parallel()
+
 	socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 		"GET /api/v1/vmm.ping": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -102,7 +98,7 @@ func TestCreateVm(t *testing.T) {
 	config := &chclient.VMConfig{
 		Cpus:    chclient.CpusConfig{BootVcpus: 2, MaxVcpus: 4},
 		Memory:  chclient.MemoryConfig{Size: 536870912},
-		Payload: &chclient.PayloadConfig{Kernel: strPtr("/path/to/vmlinux")},
+		Payload: &chclient.PayloadConfig{Kernel: new("/path/to/vmlinux")},
 		Disks:   []chclient.DiskConfig{{Path: "/path/to/rootfs.img", Readonly: false, ImageType: "raw"}},
 		Net:     []chclient.NetConfig{{Tap: "ch-tap-0", Mac: "de:ad:be:ef:00:01"}},
 		Serial:  chclient.SerialConfig{Mode: "null"},
@@ -430,9 +426,9 @@ func TestCreateVmWithPayloadConfig(t *testing.T) {
 			Cpus:   chclient.CpusConfig{BootVcpus: 2, MaxVcpus: 2},
 			Memory: chclient.MemoryConfig{Size: 268435456},
 			Payload: &chclient.PayloadConfig{
-				Kernel:    strPtr("/vmlinux"),
-				Initramfs: strPtr("/initramfs"),
-				Cmdline:   strPtr("console=ttyS0"),
+				Kernel:    new("/vmlinux"),
+				Initramfs: new("/initramfs"),
+				Cmdline:   new("console=ttyS0"),
 			},
 			Disks:   []chclient.DiskConfig{{Path: "/disk.img"}},
 			Serial:  chclient.SerialConfig{Mode: "null"},
@@ -442,11 +438,11 @@ func TestCreateVmWithPayloadConfig(t *testing.T) {
 		if err := client.CreateVM(context.Background(), config); err != nil {
 			t.Fatalf("CreateVM() returned error: %v", err)
 		}
-		var raw map[string]interface{}
+		var raw map[string]any
 		if err := json.Unmarshal(capturedBody, &raw); err != nil {
 			t.Fatalf("invalid JSON body: %v", err)
 		}
-		payload, ok := raw["payload"].(map[string]interface{})
+		payload, ok := raw["payload"].(map[string]any)
 		if !ok {
 			t.Fatal("payload field missing or not an object")
 		}
@@ -481,7 +477,7 @@ func TestCreateVmWithPayloadConfig(t *testing.T) {
 		config := &chclient.VMConfig{
 			Cpus:    chclient.CpusConfig{BootVcpus: 2, MaxVcpus: 2},
 			Memory:  chclient.MemoryConfig{Size: 268435456},
-			Payload: &chclient.PayloadConfig{Firmware: strPtr("/OVMF.fd")},
+			Payload: &chclient.PayloadConfig{Firmware: new("/OVMF.fd")},
 			Disks:   []chclient.DiskConfig{{Path: "/bootable.img"}},
 			Serial:  chclient.SerialConfig{Mode: "null"},
 			Console: chclient.ConsoleConfig{Mode: "null"},
@@ -490,11 +486,11 @@ func TestCreateVmWithPayloadConfig(t *testing.T) {
 		if err := client.CreateVM(context.Background(), config); err != nil {
 			t.Fatalf("CreateVM() returned error: %v", err)
 		}
-		var raw map[string]interface{}
+		var raw map[string]any
 		if err := json.Unmarshal(capturedBody, &raw); err != nil {
 			t.Fatalf("invalid JSON body: %v", err)
 		}
-		payload, ok := raw["payload"].(map[string]interface{})
+		payload, ok := raw["payload"].(map[string]any)
 		if !ok {
 			t.Fatal("payload field missing or not an object")
 		}
@@ -525,9 +521,9 @@ func TestVmConfigJSONSnakeCase(t *testing.T) {
 			Size: 536870912,
 		},
 		Payload: &chclient.PayloadConfig{
-			Kernel:    strPtr("/path/to/vmlinux"),
-			Initramfs: strPtr("/path/to/initramfs"),
-			Cmdline:   strPtr("console=ttyS0 root=/dev/vda rw"),
+			Kernel:    new("/path/to/vmlinux"),
+			Initramfs: new("/path/to/initramfs"),
+			Cmdline:   new("console=ttyS0 root=/dev/vda rw"),
 		},
 		Disks: []chclient.DiskConfig{
 			{Path: "/disk0.img", Readonly: false, ImageType: "raw"},
@@ -561,7 +557,7 @@ func TestVmConfigJSONSnakeCase(t *testing.T) {
 	}
 	// Unmarshal into generic map to verify all expected keys exist with
 	// snake_case names
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(data, &raw); err != nil {
 		t.Fatalf("failed to unmarshal VMConfig JSON: %v", err)
 	}
@@ -590,7 +586,7 @@ func TestVmConfigJSONSnakeCase(t *testing.T) {
 			continue
 		}
 		if len(c.subKeys) > 0 {
-			obj, ok := val.(map[string]interface{})
+			obj, ok := val.(map[string]any)
 			if !ok {
 				t.Errorf("key %q is not a JSON object", c.key)
 				continue
@@ -623,7 +619,7 @@ func TestCreateVmRequestBodySnakeCase(t *testing.T) {
 	config := &chclient.VMConfig{
 		Cpus:    chclient.CpusConfig{BootVcpus: 2, MaxVcpus: 4},
 		Memory:  chclient.MemoryConfig{Size: 268435456},
-		Payload: &chclient.PayloadConfig{Kernel: strPtr("/vmlinux")},
+		Payload: &chclient.PayloadConfig{Kernel: new("/vmlinux")},
 		Disks:   []chclient.DiskConfig{{Path: "/disk.img", Readonly: false}},
 		Serial:  chclient.SerialConfig{Mode: "null"},
 		Console: chclient.ConsoleConfig{Mode: "null"},
