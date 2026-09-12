@@ -16,6 +16,8 @@ type Artifact struct {
 }
 
 // BuilderId returns the builder identifier for this artifact.
+//
+//nolint:revive // method name mandated by packersdk.Artifact interface
 func (a *Artifact) BuilderId() string {
 	return BuilderID
 }
@@ -26,6 +28,8 @@ func (a *Artifact) Files() []string {
 }
 
 // Id returns the base name of the output directory as a simple identifier.
+//
+//nolint:revive // method name mandated by packersdk.Artifact interface
 func (a *Artifact) Id() string {
 	return filepath.Base(a.Dir)
 }
@@ -55,6 +59,7 @@ func (a *Artifact) Destroy() error {
 	if err := os.RemoveAll(a.Dir); err != nil {
 		return fmt.Errorf("error destroying artifact: %w", err)
 	}
+
 	return nil
 }
 

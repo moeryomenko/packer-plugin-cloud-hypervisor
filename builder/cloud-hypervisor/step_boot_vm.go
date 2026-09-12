@@ -23,23 +23,29 @@ func (s *StepBootVM) Run(ctx context.Context, state multistep.StateBag) multiste
 	if !ok {
 		err := errors.New("failed to get ui from state bag")
 		state.Put("error", err)
+
 		return multistep.ActionHalt
 	}
+
 	client, ok := state.Get("ch_client").(*chclient.Client)
 	if !ok {
 		err := errors.New("failed to get ch_client from state bag")
 		state.Put("error", err)
 		ui.Error(err.Error())
+
 		return multistep.ActionHalt
 	}
 
 	ui.Say("Booting Cloud-Hypervisor VM...")
+
 	if err := client.BootVM(ctx); err != nil {
 		err := fmt.Errorf("error booting VM: %w", err)
 		state.Put("error", err)
 		ui.Error(err.Error())
+
 		return multistep.ActionHalt
 	}
+
 	return multistep.ActionContinue
 }
 

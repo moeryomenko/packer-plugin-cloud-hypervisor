@@ -25,23 +25,29 @@ func (s *StepCreateVM) Run(ctx context.Context, state multistep.StateBag) multis
 	if !ok {
 		err := errors.New("failed to get ui from state bag")
 		state.Put("error", err)
+
 		return multistep.ActionHalt
 	}
+
 	client, ok := state.Get("ch_client").(*chclient.Client)
 	if !ok {
 		err := errors.New("failed to get ch_client from state bag")
 		state.Put("error", err)
 		ui.Error(err.Error())
+
 		return multistep.ActionHalt
 	}
 
 	ui.Say("Creating Cloud-Hypervisor VM...")
+
 	if err := client.CreateVM(ctx, s.VMConfig); err != nil {
 		err := fmt.Errorf("error creating VM: %w", err)
 		state.Put("error", err)
 		ui.Error(err.Error())
+
 		return multistep.ActionHalt
 	}
+
 	return multistep.ActionContinue
 }
 

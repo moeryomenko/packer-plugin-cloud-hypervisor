@@ -33,13 +33,16 @@ func (s *StepShutdownVM) Run(ctx context.Context, state multistep.StateBag) mult
 	if !ok {
 		err := errors.New("failed to get ui from state bag")
 		state.Put("error", err)
+
 		return multistep.ActionHalt
 	}
+
 	client, ok := state.Get("ch_client").(*chclient.Client)
 	if !ok {
 		err := errors.New("failed to get ch_client from state bag")
 		state.Put("error", err)
 		ui.Error(err.Error())
+
 		return multistep.ActionHalt
 	}
 
@@ -54,6 +57,7 @@ func (s *StepShutdownVM) Run(ctx context.Context, state multistep.StateBag) mult
 
 	// Wait for VM to stop (poll vm.info until 404)
 	ui.Say("Waiting for VM to shut down...")
+
 	deadline := time.Now().Add(shutdownTimeout)
 	for time.Now().Before(deadline) {
 		select {
@@ -67,14 +71,17 @@ func (s *StepShutdownVM) Run(ctx context.Context, state multistep.StateBag) mult
 			// VM is gone (expected on 404)
 			return multistep.ActionContinue
 		}
+
 		time.Sleep(shutdownPollInterval)
 	}
 
 	// REQ-014 item 4: force delete on timeout
 	ui.Say("Shutdown timeout reached, force deleting VM...")
+
 	if err := client.DeleteVM(ctx); err != nil {
 		ui.Error(fmt.Sprintf("Error force deleting VM: %s", err))
 	}
+
 	return multistep.ActionContinue
 }
 
@@ -85,10 +92,12 @@ func (s *StepShutdownVM) Cleanup(state multistep.StateBag) {
 	if !ok {
 		return
 	}
+
 	cl, ok := client.(*chclient.Client)
 	if !ok {
 		return
 	}
+
 	if err := cl.DeleteVM(context.Background()); err != nil {
 		// Log only — cleanup errors are not fatal
 		log.Printf("[DEBUG] Error deleting VM during cleanup: %s", err)

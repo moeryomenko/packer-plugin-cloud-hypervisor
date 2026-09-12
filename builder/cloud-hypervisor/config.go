@@ -73,6 +73,7 @@ type NetworkInterface struct {
 func knownKeys() map[string]bool {
 	keys := map[string]bool{}
 	collectKeys(reflect.TypeFor[Config](), keys)
+
 	return keys
 }
 
@@ -80,22 +81,27 @@ func collectKeys(t reflect.Type, keys map[string]bool) {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
+
 	if t.Kind() != reflect.Struct {
 		return
 	}
+
 	for f := range t.Fields() {
 		tag := f.Tag.Get("mapstructure")
 		if tag == "" || tag == "-" {
 			continue
 		}
+
 		parts := strings.Split(tag, ",")
 		name := parts[0]
+
 		isSquash := len(parts) > 1 && parts[1] == "squash"
 		if name == "" && isSquash {
 			// Recurse into embedded structs
 			collectKeys(f.Type, keys)
 			continue
 		}
+
 		if name != "" {
 			keys[name] = true
 		}
@@ -118,6 +124,7 @@ func filterRaws(raws []any, keys map[string]bool) []any {
 			filtered[i] = raw
 			continue
 		}
+
 		nm := make(map[string]any, len(m))
 		for k, v := range m {
 			// Always allow packer_* and type keys (they are handled by
@@ -126,12 +133,15 @@ func filterRaws(raws []any, keys map[string]bool) []any {
 				nm[k] = v
 				continue
 			}
+
 			if keys[k] {
 				nm[k] = v
 			}
 		}
+
 		filtered[i] = nm
 	}
+
 	return filtered
 }
 
@@ -167,11 +177,14 @@ func (c *Config) Prepare(raws ...any) ([]string, error) {
 		for _, e := range errs {
 			msgs = append(msgs, e.Error())
 		}
+
 		return nil, fmt.Errorf("communicator config: %s", strings.Join(msgs, "; "))
 	}
 
-	var warnings []string
-	var errs *packersdk.MultiError
+	var (
+		warnings []string
+		errs     *packersdk.MultiError
+	)
 
 	// Default ChSocketPath to a temp file path if not provided.
 	if c.ChSocketPath == "" {
@@ -179,6 +192,7 @@ func (c *Config) Prepare(raws ...any) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create default ch_socket_path: %w", err)
 		}
+
 		c.ChSocketPath = f.Name()
 		f.Close()
 		os.Remove(c.ChSocketPath)
@@ -205,6 +219,7 @@ func (c *Config) Prepare(raws ...any) ([]string, error) {
 		errs = packersdk.MultiErrorAppend(errs,
 			errors.New("either kernel or firmware must be specified"))
 	}
+
 	if hasKernel && hasFirmware {
 		errs = packersdk.MultiErrorAppend(errs,
 			errors.New("kernel and firmware are mutually exclusive"))
@@ -264,6 +279,7 @@ func (c *Config) Prepare(raws ...any) ([]string, error) {
 			errs = packersdk.MultiErrorAppend(errs,
 				fmt.Errorf("cpu_boot must be >= 1, got %d", *c.CPUBoot))
 		}
+
 		if *c.CPUBoot > c.Vcpus {
 			errs = packersdk.MultiErrorAppend(errs,
 				fmt.Errorf("cpu_boot (%d) must be <= vcpus (%d)", *c.CPUBoot, c.Vcpus))
@@ -281,10 +297,12 @@ func (c *Config) Prepare(raws ...any) ([]string, error) {
 			errs = packersdk.MultiErrorAppend(errs,
 				fmt.Errorf("disk image %q must be a regular file, not a directory", disk.Path))
 		}
+
 		if !disk.Readonly {
 			allReadonly = false
 		}
 	}
+
 	if allReadonly && len(c.DiskImages) > 0 {
 		warnings = append(warnings,
 			"all disk images are read-only; no disk will be writable for artifact capture")
@@ -297,16 +315,19 @@ func (c *Config) Prepare(raws ...any) ([]string, error) {
 	// are configured, we assume a headless build that does not need
 	// provisioning connectivity.
 	explicitComm := ""
+
 	for _, raw := range raws {
 		if m, ok := raw.(map[string]any); ok {
 			if v, ok := m["communicator"]; ok {
 				if s, ok := v.(string); ok {
 					explicitComm = s
 				}
+
 				break
 			}
 		}
 	}
+
 	if explicitComm != "" && explicitComm != commNone && len(c.NetworkInterfaces) == 0 {
 		errs = packersdk.MultiErrorAppend(errs,
 			fmt.Errorf("at least one network_interface must be specified when communicator is %q", explicitComm))

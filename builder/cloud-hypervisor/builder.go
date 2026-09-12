@@ -35,6 +35,7 @@ func (b *Builder) Prepare(raws ...any) (generatedVars, warnings []string, err er
 	if e != nil {
 		return nil, w, e
 	}
+
 	return nil, w, nil
 }
 
@@ -102,6 +103,7 @@ func (b *Builder) Run(ctx context.Context, ui packersdk.Ui, hook packersdk.Hook)
 		if err, ok := rawErr.(error); ok {
 			return nil, err
 		}
+
 		return nil, errors.New("unknown error in state bag")
 	}
 
@@ -151,7 +153,7 @@ func normalizeConsoleMode(m string) string {
 	case "socket":
 		return "Socket"
 	case "null":
-		return "Null"
+		return defaultSerialMode
 	case "":
 		return ""
 	default:
@@ -164,6 +166,7 @@ func pascalCase(s string) string {
 	if len(s) == 0 {
 		return s
 	}
+
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
@@ -180,8 +183,8 @@ func (b *Builder) buildVMConfig() *chclient.VMConfig {
 		Memory: chclient.MemoryConfig{
 			Size: int64(cfg.Memory) * miB,
 		},
-		Serial:  chclient.SerialConfig{Mode: "Null"},
-		Console: chclient.ConsoleConfig{Mode: "Null"},
+		Serial:  chclient.SerialConfig{Mode: defaultSerialMode},
+		Console: chclient.ConsoleConfig{Mode: defaultSerialMode},
 		Rng:     chclient.RngConfig{Src: "/dev/urandom"},
 	}
 
@@ -198,9 +201,11 @@ func (b *Builder) buildVMConfig() *chclient.VMConfig {
 		if cfg.Initramfs != "" {
 			payload.Initramfs = &cfg.Initramfs
 		}
+
 		if cfg.Cmdline != "" {
 			payload.Cmdline = &cfg.Cmdline
 		}
+
 		vmConfig.Payload = payload
 	} else if cfg.Firmware != "" {
 		vmConfig.Payload = &chclient.PayloadConfig{
@@ -233,9 +238,11 @@ func (b *Builder) buildVMConfig() *chclient.VMConfig {
 	if cfg.Serial != "" {
 		vmConfig.Serial.Mode = normalizeConsoleMode(cfg.Serial)
 	}
+
 	if cfg.Console != "" {
 		vmConfig.Console.Mode = normalizeConsoleMode(cfg.Console)
 	}
+
 	if cfg.RngSource != "" {
 		vmConfig.Rng.Src = cfg.RngSource
 	}

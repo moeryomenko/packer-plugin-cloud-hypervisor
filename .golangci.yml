@@ -1,11 +1,6 @@
+version: "2"
 linters:
   enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
     - asasalint
     - asciicheck
     - bodyclose
@@ -26,9 +21,7 @@ linters:
     - goconst
     - gocritic
     - godot
-    - gofmt
     - goheader
-    - goimports
     - gomoddirectives
     - gomodguard
     - gosec
@@ -57,7 +50,6 @@ linters:
     - sqlclosecheck
     - tagalign
     - tagliatelle
-    - tenv
     - testableexamples
     - testifylint
     - testpackage
@@ -68,6 +60,7 @@ linters:
     - wastedassign
     - whitespace
     - wrapcheck
+    - wsl_v5
   disable:
     - depguard
     - exhaustruct
@@ -75,74 +68,100 @@ linters:
     - ireturn
     - prealloc
     - varnamelen
-
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    gocritic:
+      enabled-checks:
+        - commentFormatting
+        - exitAfterDefer
+        - hexLiteral
+        - indexAlloc
+        - initClause
+        - methodExprCall
+        - nestingReduce
+        - newDeref
+        - nilValReturn
+        - offBy1
+        - paramTypeCombine
+        - ptrToRefParam
+        - rangeExprCopy
+        - regexpSimplify
+        - sloppyReassign
+        - stringXbytes
+        - switchTrue
+        - typeUnparen
+        - uncheckedInlineErr
+        - unlabelStmt
+        - unnamedResult
+        - valSwap
+        - wrapperFunc
+    lll:
+      line-length: 140
+    gomoddirectives:
+      replace-allow-list:
+        - github.com/zclconf/go-cty
+    goconst:
+      ignore-tests: true
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+        use-field-name: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-
-linters-settings:
-  gofmt:
-    simplify: true
-  goimports:
-    local-prefixes: github.com/moeryomenko/packer-plugin-cloud-hypervisor
-  lll:
-    line-length: 140
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  gocritic:
-    enabled-checks:
-      - commentFormatting
-      - exitAfterDefer
-      - hexLiteral
-      - indexAlloc
-      - initClause
-      - methodExprCall
-      - nestingReduce
-      - newDeref
-      - nilValReturn
-      - offBy1
-      - paramTypeCombine
-      - ptrToRefParam
-      - rangeExprCopy
-      - regexpSimplify
-      - sloppyReassign
-      - stringXbytes
-      - switchTrue
-      - typeUnparen
-      - uncheckedInlineErr
-      - unlabelStmt
-      - unnamedResult
-      - valSwap
-      - wrapperFunc
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unused-parameter
-      - name: unreachable-code
-      - name: redefines-builtin-id
-  tagliatelle:
-    case:
-      use-field-name: true
-      rules:
-        json: snake
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes:
+        - github.com/moeryomenko/packer-plugin-cloud-hypervisor
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

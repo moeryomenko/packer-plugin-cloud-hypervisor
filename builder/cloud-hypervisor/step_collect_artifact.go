@@ -28,11 +28,13 @@ func (s *StepCollectArtifact) Run(_ context.Context, state multistep.StateBag) m
 	if !ok {
 		err := errors.New("failed to get ui from state bag")
 		state.Put("error", err)
+
 		return multistep.ActionHalt
 	}
 
 	// Collect writable disk files
 	var diskFiles []string
+
 	for _, disk := range s.Config.DiskImages {
 		if !disk.Readonly {
 			diskFiles = append(diskFiles, disk.Path)
@@ -49,19 +51,23 @@ func (s *StepCollectArtifact) Run(_ context.Context, state multistep.StateBag) m
 		err := fmt.Errorf("error creating output directory: %w", err)
 		state.Put("error", err)
 		ui.Error(err.Error())
+
 		return multistep.ActionHalt
 	}
 
 	// Copy disk files
 	var copiedFiles []string
+
 	for _, src := range diskFiles {
 		dest := filepath.Join(s.OutputDir, filepath.Base(src))
 		if err := copyFile(src, dest); err != nil {
 			err := fmt.Errorf("error copying disk %s to %s: %w", src, dest, err)
 			state.Put("error", err)
 			ui.Error(err.Error())
+
 			return multistep.ActionHalt
 		}
+
 		copiedFiles = append(copiedFiles, dest)
 	}
 
@@ -102,5 +108,6 @@ func copyFile(src, dst string) error {
 	if err := out.Close(); err != nil {
 		return fmt.Errorf("error closing destination file %s: %w", dst, err)
 	}
+
 	return nil
 }

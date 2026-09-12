@@ -105,13 +105,16 @@ type RngConfig struct {
 // messages in the returned error.
 func (c *Client) doRequest(ctx context.Context, method, path, contentType string, body io.Reader) (string, error) {
 	url := "http://localhost" + path
+
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return "", fmt.Errorf("%s %s: %w", method, path, err)
 	}
+
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("%s %s: %w", method, path, err)
@@ -128,6 +131,7 @@ func (c *Client) doRequest(ctx context.Context, method, path, contentType string
 		if err := json.Unmarshal(respBody, &errMsgs); err == nil && len(errMsgs) > 0 {
 			return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.Join(errMsgs, ", "))
 		}
+
 		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -148,7 +152,9 @@ func (c *Client) CreateVM(ctx context.Context, config *VMConfig) error {
 	if err != nil {
 		return fmt.Errorf("vm.create: marshaling config: %w", err)
 	}
+
 	_, err = c.doRequest(ctx, "PUT", "/api/v1/vm.create", "application/json", bytes.NewReader(body))
+
 	return err
 }
 

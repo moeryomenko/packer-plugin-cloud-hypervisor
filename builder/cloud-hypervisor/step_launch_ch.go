@@ -36,6 +36,7 @@ func (s *StepLaunchCh) Run(ctx context.Context, state multistep.StateBag) multis
 	if !ok {
 		err := errors.New("failed to get ui from state bag")
 		state.Put("error", err)
+
 		return multistep.ActionHalt
 	}
 
@@ -50,6 +51,7 @@ func (s *StepLaunchCh) Run(ctx context.Context, state multistep.StateBag) multis
 		err := fmt.Errorf("error creating stderr pipe: %w", err)
 		state.Put("error", err)
 		ui.Error(err.Error())
+
 		return multistep.ActionHalt
 	}
 
@@ -57,6 +59,7 @@ func (s *StepLaunchCh) Run(ctx context.Context, state multistep.StateBag) multis
 		err := fmt.Errorf("error starting Cloud-Hypervisor: %w", err)
 		state.Put("error", err)
 		ui.Error(err.Error())
+
 		return multistep.ActionHalt
 	}
 
@@ -65,9 +68,11 @@ func (s *StepLaunchCh) Run(ctx context.Context, state multistep.StateBag) multis
 
 	// Wait for API readiness via ping
 	ui.Say("Waiting for Cloud-Hypervisor API...")
+
 	client := chclient.New(s.ChSocketPath)
 
 	var pingErr error
+
 	for range chPingRetries {
 		select {
 		case <-ctx.Done():
@@ -79,6 +84,7 @@ func (s *StepLaunchCh) Run(ctx context.Context, state multistep.StateBag) multis
 		if pingErr == nil {
 			break
 		}
+
 		time.Sleep(chPingInterval)
 	}
 
@@ -86,6 +92,7 @@ func (s *StepLaunchCh) Run(ctx context.Context, state multistep.StateBag) multis
 		err := fmt.Errorf("Cloud-Hypervisor did not become ready: %w", pingErr)
 		state.Put("error", err)
 		ui.Error(err.Error())
+
 		return multistep.ActionHalt
 	}
 
@@ -101,6 +108,7 @@ func (s *StepLaunchCh) Run(ctx context.Context, state multistep.StateBag) multis
 			if n > 0 {
 				log.Printf("[DEBUG] Cloud-Hypervisor stderr: %s", string(buf[:n]))
 			}
+
 			if err != nil {
 				break
 			}
@@ -116,20 +124,26 @@ func (s *StepLaunchCh) Cleanup(state multistep.StateBag) {
 	if raw, ok := state.GetOk("ch_cmd"); ok {
 		if cmd, ok := raw.(*exec.Cmd); ok && cmd.Process != nil {
 			log.Printf("[DEBUG] Terminating Cloud-Hypervisor (pid %d)", cmd.Process.Pid)
+
 			if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
 				log.Printf("[DEBUG] SIGTERM failed: %s, sending SIGKILL", err)
+
 				_ = cmd.Process.Kill() //nolint:errcheck
 			}
 			// Give it a moment to exit
 			done := make(chan struct{})
+
 			go func() {
 				_ = cmd.Wait() //nolint:errcheck
+
 				close(done)
 			}()
+
 			select {
 			case <-done:
 			case <-time.After(time.Duration(killWaitSeconds) * time.Second):
 				log.Printf("[DEBUG] Cloud-Hypervisor did not exit in time, sending SIGKILL")
+
 				_ = cmd.Process.Kill() //nolint:errcheck
 			}
 		}

@@ -44,11 +44,14 @@ func (u *mockUI) TrackProgress(_ string, _, _ int64, stream io.ReadCloser) io.Re
 func startTestServer(t *testing.T, handler http.HandlerFunc) string {
 	t.Helper()
 	socketPath := filepath.Join(t.TempDir(), "ch-test.sock")
-	listener, err := net.Listen("unix", socketPath)
+
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "unix", socketPath)
 	if err != nil {
 		t.Fatalf("failed to listen on unix socket %s: %v", socketPath, err)
 	}
+
 	t.Cleanup(func() { listener.Close() })
+
 	srv := &http.Server{
 		Handler:      handler,
 		ReadTimeout:  5 * time.Second,
@@ -61,6 +64,7 @@ func startTestServer(t *testing.T, handler http.HandlerFunc) string {
 			}
 		}
 	}()
+
 	return socketPath
 }
 
@@ -80,6 +84,7 @@ func routeHandler(routes map[string]func(w http.ResponseWriter, r *http.Request)
 			h(w, r)
 			return
 		}
+
 		w.WriteHeader(http.StatusNotFound)
 		writeUnchecked(w, []byte(`["route not found"]`))
 	}
@@ -95,17 +100,22 @@ var testCtx = context.Background() //nolint:gochecknoglobals
 
 func TestStepCreateVM_Run(t *testing.T) {
 	t.Parallel()
+
 	var capturedBody []byte
+
 	socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 		"PUT /api/v1/vm.create": func(w http.ResponseWriter, r *http.Request) {
 			var err error
+
 			capturedBody, err = io.ReadAll(r.Body)
 			if err != nil {
 				t.Fatalf("failed to read body: %v", err)
 			}
+
 			if r.Header.Get("Content-Type") != "application/json" {
 				t.Errorf("Content-Type = %q, want application/json", r.Header.Get("Content-Type"))
 			}
+
 			w.WriteHeader(http.StatusNoContent)
 		},
 	}))
@@ -137,6 +147,7 @@ func TestStepCreateVM_Run(t *testing.T) {
 	if action != multistep.ActionContinue {
 		t.Fatalf("expected ActionContinue, got %v", action)
 	}
+
 	if len(capturedBody) == 0 {
 		t.Fatal("expected non-empty request body")
 	}
@@ -146,6 +157,7 @@ func TestStepCreateVM_Run(t *testing.T) {
 	if err := json.Unmarshal(capturedBody, &sent); err != nil {
 		t.Fatalf("failed to unmarshal captured body: %v", err)
 	}
+
 	if sent.Cpus.MaxVcpus != 4 {
 		t.Errorf("cpus.max_vcpus = %d, want 4", sent.Cpus.MaxVcpus)
 	}
@@ -182,18 +194,22 @@ func TestStepCreateVM_Run_ErrorHalts(t *testing.T) {
 	if action != multistep.ActionHalt {
 		t.Fatalf("expected ActionHalt on CH error, got %v", action)
 	}
+
 	err, ok := state.GetOk("error")
 	if !ok {
 		t.Fatal("expected error in state bag on CH failure")
 	}
+
 	chErr, ok := err.(error)
 	if !ok {
 		t.Fatal("state error is not an error type")
 	}
+
 	errStr := chErr.Error()
 	if !strings.Contains(errStr, "400") {
 		t.Errorf("error should reference HTTP status 400, got: %s", errStr)
 	}
+
 	if !strings.Contains(errStr, "Invalid memory size") {
 		t.Errorf("error should include CH error body, got: %s", errStr)
 	}
@@ -223,6 +239,7 @@ func TestStepBootVM_Run(t *testing.T) {
 	if action != multistep.ActionContinue {
 		t.Fatalf("expected ActionContinue, got %v", action)
 	}
+
 	if _, ok := state.GetOk("error"); ok {
 		t.Fatal("unexpected error in state bag")
 	}
@@ -248,6 +265,7 @@ func TestStepBootVM_Run_ErrorHalts(t *testing.T) {
 	if action != multistep.ActionHalt {
 		t.Fatalf("expected ActionHalt on CH error, got %v", action)
 	}
+
 	if _, ok := state.GetOk("error"); !ok {
 		t.Fatal("expected error in state bag on CH failure")
 	}
@@ -262,14 +280,18 @@ func TestStepBootVM_Run_ErrorHalts(t *testing.T) {
 
 func TestStepShutdownVM_Run(t *testing.T) {
 	t.Parallel()
+
 	var shutdownCalled, infoCalled bool
+
 	socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 		"PUT /api/v1/vm.shutdown": func(w http.ResponseWriter, _ *http.Request) {
 			shutdownCalled = true
+
 			w.WriteHeader(http.StatusNoContent)
 		},
 		"GET /api/v1/vm.info": func(w http.ResponseWriter, _ *http.Request) {
 			infoCalled = true
+
 			w.WriteHeader(http.StatusNotFound)
 			writeUnchecked(w, []byte(`["VM not found"]`))
 		},
@@ -286,9 +308,11 @@ func TestStepShutdownVM_Run(t *testing.T) {
 	if action != multistep.ActionContinue {
 		t.Fatalf("expected ActionContinue, got %v", action)
 	}
+
 	if !shutdownCalled {
 		t.Error("expected vm.shutdown to be called")
 	}
+
 	if !infoCalled {
 		t.Error("expected vm.info to be called during shutdown poll")
 	}
@@ -298,6 +322,7 @@ func TestStepShutdownVM_Run_ShutdownErrorContinues(t *testing.T) {
 	t.Parallel()
 	// Per REQ-014 item 2: If CH returns an error on shutdown, log and continue.
 	var infoCalled bool
+
 	socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 		"PUT /api/v1/vm.shutdown": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
@@ -305,6 +330,7 @@ func TestStepShutdownVM_Run_ShutdownErrorContinues(t *testing.T) {
 		},
 		"GET /api/v1/vm.info": func(w http.ResponseWriter, _ *http.Request) {
 			infoCalled = true
+
 			w.WriteHeader(http.StatusNotFound)
 			writeUnchecked(w, []byte(`["VM not found"]`))
 		},
@@ -321,6 +347,7 @@ func TestStepShutdownVM_Run_ShutdownErrorContinues(t *testing.T) {
 	if action != multistep.ActionContinue {
 		t.Fatalf("expected ActionContinue despite shutdown error, got %v", action)
 	}
+
 	if !infoCalled {
 		t.Error("expected vm.info to be called after shutdown error")
 	}
@@ -328,10 +355,13 @@ func TestStepShutdownVM_Run_ShutdownErrorContinues(t *testing.T) {
 
 func TestStepShutdownVM_Cleanup(t *testing.T) {
 	t.Parallel()
+
 	var deleteCalled bool
+
 	socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 		"PUT /api/v1/vm.delete": func(w http.ResponseWriter, _ *http.Request) {
 			deleteCalled = true
+
 			w.WriteHeader(http.StatusNoContent)
 		},
 	}))
@@ -362,9 +392,11 @@ func TestStepCollectArtifact_Run(t *testing.T) {
 	srcDir := t.TempDir()
 	srcRootfs := filepath.Join(srcDir, "rootfs.img")
 	srcCloudInit := filepath.Join(srcDir, "cloud-init.img")
+
 	if err := os.WriteFile(srcRootfs, []byte("rootfs-content"), 0o600); err != nil {
 		t.Fatalf("failed to create src rootfs: %s", err)
 	}
+
 	if err := os.WriteFile(srcCloudInit, []byte("cloud-init-content"), 0o600); err != nil {
 		t.Fatalf("failed to create src cloud-init: %s", err)
 	}
@@ -395,10 +427,12 @@ func TestStepCollectArtifact_Run(t *testing.T) {
 	if _, err := os.Stat(destPath); os.IsNotExist(err) {
 		t.Fatal("expected rootfs.img to be copied to output dir")
 	}
+
 	copiedContent, err := os.ReadFile(destPath)
 	if err != nil {
 		t.Fatalf("failed to read copied file: %s", err)
 	}
+
 	if string(copiedContent) != "rootfs-content" {
 		t.Errorf("copied file content = %q, want %q", string(copiedContent), "rootfs-content")
 	}
@@ -414,6 +448,7 @@ func TestStepCollectArtifact_Run(t *testing.T) {
 	if !ok {
 		t.Fatal("expected artifact in state bag")
 	}
+
 	art, ok := rawArtifact.(*cloudhypervisor.Artifact)
 	if !ok {
 		t.Fatalf("expected *cloudhypervisor.Artifact, got %T", rawArtifact)
@@ -423,6 +458,7 @@ func TestStepCollectArtifact_Run(t *testing.T) {
 	if len(art.Files()) != 1 {
 		t.Fatalf("expected 1 file in artifact, got %d: %v", len(art.Files()), art.Files())
 	}
+
 	if art.Files()[0] != destPath {
 		t.Errorf("artifact file = %q, want %q", art.Files()[0], destPath)
 	}
@@ -431,6 +467,7 @@ func TestStepCollectArtifact_Run(t *testing.T) {
 	if art.BuilderId() != cloudhypervisor.BuilderID {
 		t.Errorf("BuilderId() = %q, want %q", art.BuilderId(), cloudhypervisor.BuilderID)
 	}
+
 	if art.Id() == "" {
 		t.Error("Id() should not be empty")
 	}
@@ -442,6 +479,7 @@ func TestStepCollectArtifact_Run_NoWritableDisks(t *testing.T) {
 
 	// All disks are readonly
 	srcDir := t.TempDir()
+
 	srcRo := filepath.Join(srcDir, "seed.img")
 	if err := os.WriteFile(srcRo, []byte("seed-content"), 0o600); err != nil {
 		t.Fatalf("failed to create seed disk: %s", err)
@@ -494,6 +532,7 @@ func TestStepCollectArtifact_Run_EmptyDisks(t *testing.T) {
 	if action != multistep.ActionContinue {
 		t.Fatalf("expected ActionContinue with empty disk list, got %v", action)
 	}
+
 	if _, ok := state.GetOk("artifact"); ok {
 		t.Error("unexpected artifact in state bag with empty disk list")
 	}
@@ -506,6 +545,7 @@ func TestStepCollectArtifact_Run_EmptyDisks(t *testing.T) {
 
 func TestArtifact_BuilderID(t *testing.T) {
 	t.Parallel()
+
 	a := &cloudhypervisor.Artifact{}
 	if a.BuilderId() != cloudhypervisor.BuilderID {
 		t.Errorf("BuilderId() = %q, want %q", a.BuilderId(), cloudhypervisor.BuilderID)
@@ -514,6 +554,7 @@ func TestArtifact_BuilderID(t *testing.T) {
 
 func TestArtifact_Files(t *testing.T) {
 	t.Parallel()
+
 	files := []string{"/tmp/out/disk0.img", "/tmp/out/disk1.img"}
 	a := &cloudhypervisor.Artifact{Dir: "/tmp/out", FilesList: files}
 
@@ -521,6 +562,7 @@ func TestArtifact_Files(t *testing.T) {
 	if len(got) != len(files) {
 		t.Fatalf("Files() returned %d entries, want %d: %v", len(got), len(files), got)
 	}
+
 	for i := range files {
 		if got[i] != files[i] {
 			t.Errorf("Files()[%d] = %q, want %q", i, got[i], files[i])
@@ -530,11 +572,14 @@ func TestArtifact_Files(t *testing.T) {
 
 func TestArtifact_ID(t *testing.T) {
 	t.Parallel()
+
 	a := &cloudhypervisor.Artifact{Dir: "/some/build/dir"}
+
 	id := a.Id()
 	if id == "" {
 		t.Fatal("Id() returned empty string")
 	}
+
 	if !strings.Contains(id, "cloud-hypervisor") && !strings.Contains(id, "artifact") {
 		// At minimum, the id should describe what it is. Accept any non-empty
 		// string; the precise format is a design choice.
@@ -546,6 +591,7 @@ func TestArtifact_Destroy(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	f1 := filepath.Join(dir, "disk0.img")
+
 	f2 := filepath.Join(dir, "disk1.img")
 	for _, p := range []string{f1, f2} {
 		if err := os.WriteFile(p, []byte("data"), 0o600); err != nil {
@@ -570,6 +616,7 @@ func TestArtifact_Destroy(t *testing.T) {
 
 func TestArtifact_State(t *testing.T) {
 	t.Parallel()
+
 	a := &cloudhypervisor.Artifact{
 		Dir:       "/tmp/artifact-dir",
 		FilesList: []string{"/tmp/artifact-dir/disk.img"},
@@ -577,10 +624,12 @@ func TestArtifact_State(t *testing.T) {
 
 	// "generated_data" must return a map with at least artifact_id
 	data := a.State("generated_data")
+
 	m, ok := data.(map[string]any)
 	if !ok {
 		t.Fatalf("State('generated_data') returned %T, expected map[string]interface{}", data)
 	}
+
 	if _, exists := m["artifact_id"]; !exists {
 		t.Error("generated_data should contain 'artifact_id'")
 	}
@@ -599,6 +648,7 @@ func TestArtifact_State(t *testing.T) {
 
 func TestCommHost_WithIP(t *testing.T) {
 	t.Parallel()
+
 	cfg := &cloudhypervisor.Config{
 		NetworkInterfaces: []cloudhypervisor.NetworkInterface{
 			{Tap: "ch-tap-0", IP: "10.0.2.15"},
@@ -606,10 +656,12 @@ func TestCommHost_WithIP(t *testing.T) {
 	}
 
 	hostFunc := cloudhypervisor.CommHost(cfg)
+
 	host, err := hostFunc(nil)
 	if err != nil {
 		t.Fatalf("CommHost returned error: %v", err)
 	}
+
 	if host != "10.0.2.15" {
 		t.Errorf("CommHost = %q, want %q", host, "10.0.2.15")
 	}
@@ -626,10 +678,12 @@ func TestCommHost_WithIP_SecondInterface(t *testing.T) {
 	}
 
 	hostFunc := cloudhypervisor.CommHost(cfg)
+
 	host, err := hostFunc(nil)
 	if err != nil {
 		t.Fatalf("CommHost returned error: %v", err)
 	}
+
 	if host != "192.168.100.2" {
 		t.Errorf("CommHost = %q, want %q", host, "192.168.100.2")
 	}
@@ -637,6 +691,7 @@ func TestCommHost_WithIP_SecondInterface(t *testing.T) {
 
 func TestCommHost_NoIP(t *testing.T) {
 	t.Parallel()
+
 	cfg := &cloudhypervisor.Config{
 		NetworkInterfaces: []cloudhypervisor.NetworkInterface{
 			{Tap: "ch-tap-0"},
@@ -644,10 +699,12 @@ func TestCommHost_NoIP(t *testing.T) {
 	}
 
 	hostFunc := cloudhypervisor.CommHost(cfg)
+
 	host, err := hostFunc(nil)
 	if err != nil {
 		t.Fatalf("CommHost returned error: %v", err)
 	}
+
 	if host != "" {
 		t.Errorf("CommHost = %q, want empty string", host)
 	}
@@ -655,15 +712,18 @@ func TestCommHost_NoIP(t *testing.T) {
 
 func TestCommHost_EmptyInterfaces(t *testing.T) {
 	t.Parallel()
+
 	cfg := &cloudhypervisor.Config{
 		NetworkInterfaces: []cloudhypervisor.NetworkInterface{},
 	}
 
 	hostFunc := cloudhypervisor.CommHost(cfg)
+
 	host, err := hostFunc(nil)
 	if err != nil {
 		t.Fatalf("CommHost returned error: %v", err)
 	}
+
 	if host != "" {
 		t.Errorf("CommHost = %q, want empty string", host)
 	}

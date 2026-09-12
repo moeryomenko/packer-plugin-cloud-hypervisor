@@ -13,6 +13,7 @@ func stripCIDR(ip string) string {
 	if host, _, err := net.ParseCIDR(ip); err == nil {
 		return host.String()
 	}
+
 	return ip
 }
 
@@ -29,6 +30,7 @@ func CommHost(cfg *Config) func(multistep.StateBag) (string, error) {
 				return stripCIDR(raw), nil
 			}
 		}
+
 		return "", nil
 	}
 }

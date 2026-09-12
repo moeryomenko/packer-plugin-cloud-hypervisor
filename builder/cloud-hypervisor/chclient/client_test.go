@@ -20,13 +20,16 @@ import (
 func startTestServer(t *testing.T, handler func(w http.ResponseWriter, r *http.Request)) string {
 	t.Helper()
 	socketPath := filepath.Join(t.TempDir(), "ch-test.sock")
-	listener, err := net.Listen("unix", socketPath)
+
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "unix", socketPath)
 	if err != nil {
 		t.Fatalf("failed to listen on unix socket %s: %v", socketPath, err)
 	}
+
 	t.Cleanup(func() {
 		listener.Close()
 	})
+
 	go func() {
 		server := &http.Server{
 			Handler:      http.HandlerFunc(handler),
@@ -40,6 +43,7 @@ func startTestServer(t *testing.T, handler func(w http.ResponseWriter, r *http.R
 			}
 		}
 	}()
+
 	return socketPath
 }
 
@@ -52,6 +56,7 @@ func routeHandler(routes map[string]func(w http.ResponseWriter, r *http.Request)
 			h(w, r)
 			return
 		}
+
 		w.WriteHeader(http.StatusNotFound)
 		writeUnchecked(w, []byte(`["route not found"]`))
 	}
@@ -76,6 +81,7 @@ func TestPing(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		},
 	}))
+
 	client := chclient.New(socketPath)
 	if err := client.Ping(context.Background()); err != nil {
 		t.Fatalf("Ping() returned unexpected error: %v", err)
@@ -84,17 +90,23 @@ func TestPing(t *testing.T) {
 
 func TestCreateVm(t *testing.T) {
 	t.Parallel()
-	var capturedMethod, capturedPath string
-	var capturedCT string
+
+	var (
+		capturedMethod, capturedPath string
+		capturedCT                   string
+	)
+
 	socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 		"PUT /api/v1/vm.create": func(w http.ResponseWriter, r *http.Request) {
 			capturedMethod = r.Method
 			capturedPath = r.URL.Path
 			capturedCT = r.Header.Get("Content-Type")
+
 			w.WriteHeader(http.StatusNoContent)
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	config := &chclient.VMConfig{
 		Cpus:    chclient.CpusConfig{BootVcpus: 2, MaxVcpus: 4},
 		Memory:  chclient.MemoryConfig{Size: 536870912},
@@ -108,12 +120,15 @@ func TestCreateVm(t *testing.T) {
 	if err := client.CreateVM(context.Background(), config); err != nil {
 		t.Fatalf("CreateVM() returned unexpected error: %v", err)
 	}
+
 	if capturedMethod != "PUT" {
 		t.Errorf("request method = %q, want PUT", capturedMethod)
 	}
+
 	if capturedPath != "/api/v1/vm.create" {
 		t.Errorf("request path = %q, want /api/v1/vm.create", capturedPath)
 	}
+
 	if capturedCT != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", capturedCT)
 	}
@@ -121,21 +136,27 @@ func TestCreateVm(t *testing.T) {
 
 func TestBootVm(t *testing.T) {
 	t.Parallel()
+
 	var capturedMethod, capturedPath string
+
 	socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 		"PUT /api/v1/vm.boot": func(w http.ResponseWriter, r *http.Request) {
 			capturedMethod = r.Method
 			capturedPath = r.URL.Path
+
 			w.WriteHeader(http.StatusNoContent)
 		},
 	}))
+
 	client := chclient.New(socketPath)
 	if err := client.BootVM(context.Background()); err != nil {
 		t.Fatalf("BootVM() returned unexpected error: %v", err)
 	}
+
 	if capturedMethod != "PUT" {
 		t.Errorf("request method = %q, want PUT", capturedMethod)
 	}
+
 	if capturedPath != "/api/v1/vm.boot" {
 		t.Errorf("request path = %q, want /api/v1/vm.boot", capturedPath)
 	}
@@ -148,6 +169,7 @@ func TestShutdownVm(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 		},
 	}))
+
 	client := chclient.New(socketPath)
 	if err := client.ShutdownVM(context.Background()); err != nil {
 		t.Fatalf("ShutdownVM() returned unexpected error: %v", err)
@@ -161,6 +183,7 @@ func TestDeleteVm(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 		},
 	}))
+
 	client := chclient.New(socketPath)
 	if err := client.DeleteVM(context.Background()); err != nil {
 		t.Fatalf("DeleteVM() returned unexpected error: %v", err)
@@ -169,6 +192,7 @@ func TestDeleteVm(t *testing.T) {
 
 func TestVmInfo(t *testing.T) {
 	t.Parallel()
+
 	expectedBody := `{"state":"Running","config":{"cpus":{"boot_vcpus":2,"max_vcpus":4}}}`
 	socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 		"GET /api/v1/vm.info": func(w http.ResponseWriter, _ *http.Request) {
@@ -177,10 +201,12 @@ func TestVmInfo(t *testing.T) {
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	body, err := client.VMInfo(context.Background())
 	if err != nil {
 		t.Fatalf("VMInfo() returned unexpected error: %v", err)
 	}
+
 	if body != expectedBody {
 		t.Errorf("VMInfo() body = %q, want %q", body, expectedBody)
 	}
@@ -199,13 +225,16 @@ func TestPingServerError(t *testing.T) {
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	err := client.Ping(context.Background())
 	if err == nil {
 		t.Fatal("Ping() expected error for 500, got nil")
 	}
+
 	if !strings.Contains(err.Error(), "500") {
 		t.Errorf("error should reference status 500, got: %v", err)
 	}
+
 	if !strings.Contains(err.Error(), "Internal server error") {
 		t.Errorf("error should include CH error body, got: %v", err)
 	}
@@ -220,13 +249,16 @@ func TestCreateVmBadRequest(t *testing.T) {
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	err := client.CreateVM(context.Background(), &chclient.VMConfig{})
 	if err == nil {
 		t.Fatal("CreateVM() expected error for 400, got nil")
 	}
+
 	if !strings.Contains(err.Error(), "400") {
 		t.Errorf("error should reference status 400, got: %v", err)
 	}
+
 	if !strings.Contains(err.Error(), "Invalid memory size") {
 		t.Errorf("error should include CH error body, got: %v", err)
 	}
@@ -241,13 +273,16 @@ func TestBootVmNotFound(t *testing.T) {
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	err := client.BootVM(context.Background())
 	if err == nil {
 		t.Fatal("BootVM() expected error for 404, got nil")
 	}
+
 	if !strings.Contains(err.Error(), "404") {
 		t.Errorf("error should reference status 404, got: %v", err)
 	}
+
 	if !strings.Contains(err.Error(), "Vm not found") {
 		t.Errorf("error should include CH error body, got: %v", err)
 	}
@@ -262,10 +297,12 @@ func TestCreateVmServerError(t *testing.T) {
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	err := client.CreateVM(context.Background(), &chclient.VMConfig{})
 	if err == nil {
 		t.Fatal("CreateVM() expected error for 500, got nil")
 	}
+
 	if !strings.Contains(err.Error(), "500") {
 		t.Errorf("error should reference status 500, got: %v", err)
 	}
@@ -280,6 +317,7 @@ func TestShutdownVmNotFound(t *testing.T) {
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	err := client.ShutdownVM(context.Background())
 	if err == nil {
 		t.Fatal("ShutdownVM() expected error for 404, got nil")
@@ -295,6 +333,7 @@ func TestDeleteVmNotFound(t *testing.T) {
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	err := client.DeleteVM(context.Background())
 	if err == nil {
 		t.Fatal("DeleteVM() expected error for 404, got nil")
@@ -312,13 +351,16 @@ func TestErrorBodyMultipleMessages(t *testing.T) {
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	err := client.CreateVM(context.Background(), &chclient.VMConfig{})
 	if err == nil {
 		t.Fatal("CreateVM() expected error, got nil")
 	}
+
 	if !strings.Contains(err.Error(), "DeviceManagerError") {
 		t.Errorf("error should include first CH message, got: %v", err)
 	}
+
 	if !strings.Contains(err.Error(), "VmError") {
 		t.Errorf("error should include second CH message, got: %v", err)
 	}
@@ -332,17 +374,22 @@ func TestErrorBodyMultipleMessages(t *testing.T) {
 // config still sends a valid PUT request and does not cause panics.
 func TestCreateVmEmptyConfig(t *testing.T) {
 	t.Parallel()
+
 	var capturedBody []byte
+
 	socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 		"PUT /api/v1/vm.create": func(w http.ResponseWriter, r *http.Request) {
 			var err error
+
 			capturedBody, err = io.ReadAll(r.Body)
 			if err != nil {
 				t.Fatalf("failed to read body: %v", err)
 			}
+
 			w.WriteHeader(http.StatusNoContent)
 		},
 	}))
+
 	client := chclient.New(socketPath)
 	if err := client.CreateVM(context.Background(), &chclient.VMConfig{}); err != nil {
 		t.Fatalf("CreateVM() with empty config returned error: %v", err)
@@ -351,6 +398,7 @@ func TestCreateVmEmptyConfig(t *testing.T) {
 	if len(capturedBody) == 0 {
 		t.Error("request body was empty, expected non-empty JSON")
 	}
+
 	if !json.Valid(capturedBody) {
 		t.Errorf("request body is not valid JSON: %s", string(capturedBody))
 	}
@@ -366,6 +414,7 @@ func TestVmInfoEmptyBody(t *testing.T) {
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	body, err := client.VMInfo(context.Background())
 	if err != nil {
 		t.Fatalf("VMInfo() with empty body returned error: %v", err)
@@ -387,6 +436,7 @@ func TestVmInfoNotFound(t *testing.T) {
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	_, err := client.VMInfo(context.Background())
 	if err == nil {
 		t.Fatal("VMInfo() expected error for 404, got nil")
@@ -397,7 +447,9 @@ func TestVmInfoNotFound(t *testing.T) {
 // socket does not exist (network-level error).
 func TestNonExistentSocket(t *testing.T) {
 	t.Parallel()
+
 	client := chclient.New("/nonexistent/ch-test.sock")
+
 	err := client.Ping(context.Background())
 	if err == nil {
 		t.Fatal("Ping() expected error with nonexistent socket, got nil")
@@ -410,18 +462,23 @@ func TestCreateVmWithPayloadConfig(t *testing.T) {
 	t.Parallel()
 	t.Run("kernel payload", func(t *testing.T) {
 		t.Parallel()
+
 		var capturedBody []byte
+
 		socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 			"PUT /api/v1/vm.create": func(w http.ResponseWriter, r *http.Request) {
 				var err error
+
 				capturedBody, err = io.ReadAll(r.Body)
 				if err != nil {
 					t.Fatalf("failed to read body: %v", err)
 				}
+
 				w.WriteHeader(http.StatusNoContent)
 			},
 		}))
 		client := chclient.New(socketPath)
+
 		config := &chclient.VMConfig{
 			Cpus:   chclient.CpusConfig{BootVcpus: 2, MaxVcpus: 2},
 			Memory: chclient.MemoryConfig{Size: 268435456},
@@ -438,23 +495,29 @@ func TestCreateVmWithPayloadConfig(t *testing.T) {
 		if err := client.CreateVM(context.Background(), config); err != nil {
 			t.Fatalf("CreateVM() returned error: %v", err)
 		}
+
 		var raw map[string]any
 		if err := json.Unmarshal(capturedBody, &raw); err != nil {
 			t.Fatalf("invalid JSON body: %v", err)
 		}
+
 		payload, ok := raw["payload"].(map[string]any)
 		if !ok {
 			t.Fatal("payload field missing or not an object")
 		}
+
 		if _, ok := payload["kernel"]; !ok {
 			t.Error("payload.kernel is missing")
 		}
+
 		if _, ok := payload["initramfs"]; !ok {
 			t.Error("payload.initramfs is missing")
 		}
+
 		if _, ok := payload["cmdline"]; !ok {
 			t.Error("payload.cmdline is missing")
 		}
+
 		if _, ok := payload["firmware"]; ok {
 			t.Error("payload.firmware present unexpectedly for kernel payload")
 		}
@@ -462,18 +525,23 @@ func TestCreateVmWithPayloadConfig(t *testing.T) {
 
 	t.Run("firmware payload", func(t *testing.T) {
 		t.Parallel()
+
 		var capturedBody []byte
+
 		socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 			"PUT /api/v1/vm.create": func(w http.ResponseWriter, r *http.Request) {
 				var err error
+
 				capturedBody, err = io.ReadAll(r.Body)
 				if err != nil {
 					t.Fatalf("failed to read body: %v", err)
 				}
+
 				w.WriteHeader(http.StatusNoContent)
 			},
 		}))
 		client := chclient.New(socketPath)
+
 		config := &chclient.VMConfig{
 			Cpus:    chclient.CpusConfig{BootVcpus: 2, MaxVcpus: 2},
 			Memory:  chclient.MemoryConfig{Size: 268435456},
@@ -486,17 +554,21 @@ func TestCreateVmWithPayloadConfig(t *testing.T) {
 		if err := client.CreateVM(context.Background(), config); err != nil {
 			t.Fatalf("CreateVM() returned error: %v", err)
 		}
+
 		var raw map[string]any
 		if err := json.Unmarshal(capturedBody, &raw); err != nil {
 			t.Fatalf("invalid JSON body: %v", err)
 		}
+
 		payload, ok := raw["payload"].(map[string]any)
 		if !ok {
 			t.Fatal("payload field missing or not an object")
 		}
+
 		if _, ok := payload["firmware"]; !ok {
 			t.Error("payload.firmware is missing")
 		}
+
 		if _, ok := payload["kernel"]; ok {
 			t.Error("payload.kernel present unexpectedly for firmware payload")
 		}
@@ -512,6 +584,7 @@ func TestCreateVmWithPayloadConfig(t *testing.T) {
 // convention, and no camelCase or PascalCase fields leak through.
 func TestVmConfigJSONSnakeCase(t *testing.T) {
 	t.Parallel()
+
 	config := chclient.VMConfig{
 		Cpus: chclient.CpusConfig{
 			BootVcpus: 2,
@@ -536,6 +609,7 @@ func TestVmConfigJSONSnakeCase(t *testing.T) {
 		Console: chclient.ConsoleConfig{Mode: "null"},
 		Rng:     chclient.RngConfig{Src: "/dev/urandom"},
 	}
+
 	data, err := json.Marshal(config)
 	if err != nil {
 		t.Fatalf("json.Marshal(VMConfig) failed: %v", err)
@@ -549,6 +623,7 @@ func TestVmConfigJSONSnakeCase(t *testing.T) {
 		"Serial", "Console", "Mode",
 		"Rng", "Src",
 	}
+
 	jsonStr := string(data)
 	for _, field := range leaked {
 		if strings.Contains(jsonStr, field) {
@@ -561,11 +636,13 @@ func TestVmConfigJSONSnakeCase(t *testing.T) {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		t.Fatalf("failed to unmarshal VMConfig JSON: %v", err)
 	}
+
 	type fieldCheck struct {
 		key      string
 		subKeys  []string
 		optional bool
 	}
+
 	checks := []fieldCheck{
 		{key: "cpus", subKeys: []string{"boot_vcpus", "max_vcpus"}},
 		{key: "memory", subKeys: []string{"size"}},
@@ -582,15 +659,19 @@ func TestVmConfigJSONSnakeCase(t *testing.T) {
 			if c.optional {
 				continue
 			}
+
 			t.Errorf("top-level key %q is missing (required)", c.key)
+
 			continue
 		}
+
 		if len(c.subKeys) > 0 {
 			obj, ok := val.(map[string]any)
 			if !ok {
 				t.Errorf("key %q is not a JSON object", c.key)
 				continue
 			}
+
 			for _, sk := range c.subKeys {
 				if _, ok := obj[sk]; !ok {
 					t.Errorf("field %s.%s is missing (should be snake_case)", c.key, sk)
@@ -604,18 +685,23 @@ func TestVmConfigJSONSnakeCase(t *testing.T) {
 // the body sent by CreateVM uses snake_case keys on the wire.
 func TestCreateVmRequestBodySnakeCase(t *testing.T) {
 	t.Parallel()
+
 	var capturedBody []byte
+
 	socketPath := startTestServer(t, routeHandler(map[string]func(w http.ResponseWriter, r *http.Request){
 		"PUT /api/v1/vm.create": func(w http.ResponseWriter, r *http.Request) {
 			var err error
+
 			capturedBody, err = io.ReadAll(r.Body)
 			if err != nil {
 				t.Fatalf("failed to read body: %v", err)
 			}
+
 			w.WriteHeader(http.StatusNoContent)
 		},
 	}))
 	client := chclient.New(socketPath)
+
 	config := &chclient.VMConfig{
 		Cpus:    chclient.CpusConfig{BootVcpus: 2, MaxVcpus: 4},
 		Memory:  chclient.MemoryConfig{Size: 268435456},
@@ -628,11 +714,13 @@ func TestCreateVmRequestBodySnakeCase(t *testing.T) {
 	if err := client.CreateVM(context.Background(), config); err != nil {
 		t.Fatalf("CreateVM() returned error: %v", err)
 	}
+
 	jsonStr := string(capturedBody)
 	// Leaked camelCase or PascalCase field names
 	if strings.Contains(jsonStr, "BootVcpus") || strings.Contains(jsonStr, "bootVcpus") {
 		t.Error("request body contains camelCase field name 'BootVcpus' or 'bootVcpus'")
 	}
+
 	if strings.Contains(jsonStr, "MaxVcpus") || strings.Contains(jsonStr, "maxVcpus") {
 		t.Error("request body contains camelCase field name 'MaxVcpus' or 'maxVcpus'")
 	}
@@ -640,24 +728,31 @@ func TestCreateVmRequestBodySnakeCase(t *testing.T) {
 	if !strings.Contains(jsonStr, `boot_vcpus`) {
 		t.Error("request body missing snake_case field 'boot_vcpus'")
 	}
+
 	if !strings.Contains(jsonStr, `max_vcpus`) {
 		t.Error("request body missing snake_case field 'max_vcpus'")
 	}
+
 	if !strings.Contains(jsonStr, `"cpus"`) {
 		t.Error("request body missing top-level 'cpus' field")
 	}
+
 	if !strings.Contains(jsonStr, `"memory"`) {
 		t.Error("request body missing top-level 'memory' field")
 	}
+
 	if !strings.Contains(jsonStr, `"payload"`) {
 		t.Error("request body missing top-level 'payload' field")
 	}
+
 	if !strings.Contains(jsonStr, `"serial"`) {
 		t.Error("request body missing top-level 'serial' field")
 	}
+
 	if !strings.Contains(jsonStr, `"console"`) {
 		t.Error("request body missing top-level 'console' field")
 	}
+
 	if !strings.Contains(jsonStr, `"rng"`) {
 		t.Error("request body missing top-level 'rng' field")
 	}
@@ -691,6 +786,7 @@ func TestVmInfoUsesGet(t *testing.T) {
 			writeUnchecked(w, []byte(`{}`))
 		},
 	}))
+
 	client := chclient.New(socketPath)
 	if _, err := client.VMInfo(context.Background()); err != nil {
 		t.Fatalf("VMInfo() failed: %v", err)
