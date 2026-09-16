@@ -7,7 +7,7 @@ packer {
   required_plugins {
     cloud-hypervisor = {
       version = ">= 0.0.1"
-      source  = "github.com/eryoma/cloud-hypervisor"
+      source  = "github.com/moeryomenko/cloud-hypervisor"
     }
   }
 }
