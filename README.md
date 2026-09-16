@@ -29,15 +29,47 @@ modified disk image(s) as the artifact.
 
 ## Installation
 
+The plugin is distributed as a GitHub release from the
+`moeryomenko/packer-plugin-cloud-hypervisor` repository. Add it to the
+`required_plugins` block of a template and run `packer init` to install it:
+
+```hcl
+packer {
+  required_plugins {
+    cloud-hypervisor = {
+      version = ">= 0.0.1"
+      source  = "github.com/moeryomenko/cloud-hypervisor"
+    }
+  }
+}
+```
+
+Packer plugin source strings omit the `packer-plugin-` prefix: the name is
+derived from the repository's `packer-plugin-cloud-hypervisor` basename, and
+Packer resolves it back to the `moeryomenko/packer-plugin-cloud-hypervisor`
+repo when downloading releases.
+
+```bash
+packer init .
+```
+
+### Install a build from source
+
 Build the plugin binary and install it for Packer:
 
 ```bash
 git clone https://github.com/moeryomenko/packer-plugin-cloud-hypervisor.git
 cd packer-plugin-cloud-hypervisor
 
+make dev
+```
+
+This builds `packer-plugin-cloud-hypervisor` (with a `dev` prerelease marker)
+and installs it with `packer plugins install --path`. To do it manually:
+
+```bash
 go build -o packer-plugin-cloud-hypervisor .
-mkdir -p ~/.packer.d/plugins/
-cp packer-plugin-cloud-hypervisor ~/.packer.d/plugins/
+packer plugins install --path packer-plugin-cloud-hypervisor github.com/moeryomenko/cloud-hypervisor
 ```
 
 ## Quick Start
@@ -47,8 +79,7 @@ both kernel boot (Alpine Linux) and firmware boot (Ubuntu).
 
 ```bash
 # Build and install the plugin
-go build -o packer-plugin-cloud-hypervisor .
-cp packer-plugin-cloud-hypervisor ~/.packer.d/plugins/
+make dev
 
 # Run the setup script (creates assets and TAP device)
 cd examples
