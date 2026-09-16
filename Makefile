@@ -2,6 +2,8 @@ BINARY := packer-plugin-cloud-hypervisor
 COVER_FILE ?= coverage.out
 RACE_DETECTOR := $(if $(RACE_DETECTOR),-race)
 IMPORT_PATH := $(shell go list -m -f {{.Path}} | head -1)
+SDK_VERSION := $(shell go list -m github.com/hashicorp/packer-plugin-sdk | cut -d ' ' -f2)
+PLUGIN_FQN := $(shell go list -m -f {{.Path}})
 
 .PHONY: default
 default: help
@@ -9,6 +11,19 @@ default: help
 .PHONY: build
 build: ## Build the plugin binary
 	@go build -o $(BINARY) .
+
+.PHONY: dev
+dev: ## Build with a dev prerelease and install for Packer
+	@go build -ldflags="-X '$(PLUGIN_FQN)/version.VersionPrerelease=dev'" -o $(BINARY) .
+	@packer plugins install --path $(BINARY) "$(shell echo '$(PLUGIN_FQN)' | sed 's/packer-plugin-//')"
+
+.PHONY: install-packer-sdc
+install-packer-sdc: ## Install the Packer software development command
+	@go install github.com/hashicorp/packer-plugin-sdk/cmd/packer-sdc@$(SDK_VERSION)
+
+.PHONY: plugin-check
+plugin-check: install-packer-sdc build ## Verify plugin compatibility with the Packer SDK
+	@packer-sdc plugin-check $(BINARY)
 
 .PHONY: test
 test: ## Run all tests
